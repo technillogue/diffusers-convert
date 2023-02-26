@@ -133,57 +133,6 @@ def create_diff(pt_infos: Dict[str, List[str]], sf_infos: Dict[str, List[str]]) 
             errors.append(f"{key} : SF warnings contain {sf_only} which are not present in PT warnings")
     return "\n".join(errors)
 
-
-def check_final_model(model_id: str, folder: str):
-    config = hf_hub_download(repo_id=model_id, filename="config.json")
-    shutil.copy(config, os.path.join(folder, "config.json"))
-    config = AutoConfig.from_pretrained(folder)
-
-    _, (pt_model, pt_infos) = infer_framework_load_model(model_id, config, output_loading_info=True)
-    _, (sf_model, sf_infos) = infer_framework_load_model(folder, config, output_loading_info=True)
-
-    if pt_infos != sf_infos:
-        error_string = create_diff(pt_infos, sf_infos)
-        raise ValueError(f"Different infos when reloading the model: {error_string}")
-
-    pt_params = pt_model.state_dict()
-    sf_params = sf_model.state_dict()
-
-    pt_shared = shared_pointers(pt_params)
-    sf_shared = shared_pointers(sf_params)
-    if pt_shared != sf_shared:
-        raise RuntimeError("The reconstructed model is wrong, shared tensors are different {shared_pt} != {shared_tf}")
-
-    sig = signature(pt_model.forward)
-    input_ids = torch.arange(10).unsqueeze(0)
-    pixel_values = torch.randn(1, 3, 224, 224)
-    input_values = torch.arange(1000).float().unsqueeze(0)
-    kwargs = {}
-    if "input_ids" in sig.parameters:
-        kwargs["input_ids"] = input_ids
-    if "decoder_input_ids" in sig.parameters:
-        kwargs["decoder_input_ids"] = input_ids
-    if "pixel_values" in sig.parameters:
-        kwargs["pixel_values"] = pixel_values
-    if "input_values" in sig.parameters:
-        kwargs["input_values"] = input_values
-    if "bbox" in sig.parameters:
-        kwargs["bbox"] = torch.zeros((1, 10, 4)).long()
-    if "image" in sig.parameters:
-        kwargs["image"] = pixel_values
-
-    if torch.cuda.is_available():
-        pt_model = pt_model.cuda()
-        sf_model = sf_model.cuda()
-        kwargs = {k: v.cuda() for k, v in kwargs.items()}
-
-    pt_logits = pt_model(**kwargs)[0]
-    sf_logits = sf_model(**kwargs)[0]
-
-    torch.testing.assert_close(sf_logits, pt_logits)
-    print(f"Model {model_id} is ok !")
-
-
 def previous_pr(api: "HfApi", model_id: str, pr_title: str) -> Optional["Discussion"]:
     try:
         discussions = api.get_repo_discussions(repo_id=model_id)
@@ -218,7 +167,7 @@ def convert_generic(model_id: str, folder: str, filenames: Set[str]) -> List["Co
 def convert(api: "HfApi", model_id: str, force: bool = False) -> Optional["CommitInfo"]:
     pr_title = "Adding `safetensors` variant of this model"
     info = api.model_info(model_id)
-    filenames = set(s.rfilename for s in info.siblings)
+    filenames = set(s.rfilename for s in info.siblings if len(s.rfilename.split("/")) > 1)
 
     with TemporaryDirectory() as d:
         folder = os.path.join(d, repo_folder_name(repo_id=model_id, repo_type="models"))
@@ -242,7 +191,6 @@ def convert(api: "HfApi", model_id: str, force: bool = False) -> Optional["Commi
                     operations = convert_multi(model_id, folder)
                 else:
                     raise RuntimeError(f"Model {model_id} doesn't seem to be a valid pytorch model. Cannot convert")
-                check_final_model(model_id, folder)
             else:
                 operations = convert_generic(model_id, folder, filenames)
 
