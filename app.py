@@ -31,7 +31,7 @@ def run(token: str, model_id: str) -> str:
         is_private = api.model_info(repo_id=model_id).private
         print("is_private", is_private)
 
-        commit_info = convert(api=api, model_id=model_id)
+        commit_info = convert(api=api, model_id=model_id, force=True)
         print("[commit_info]", commit_info)
 
         # save in a (public) dataset:
