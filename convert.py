@@ -167,8 +167,12 @@ def convert_generic(model_id: str, folder: str, filenames: Set[str]) -> List["Co
 def convert(api: "HfApi", model_id: str, force: bool = False) -> Optional["CommitInfo"]:
     pr_title = "Adding `safetensors` variant of this model"
     info = api.model_info(model_id)
-    filenames = set(s.rfilename for s in info.siblings if len(s.rfilename.split("/")) > 1)
 
+    def is_valid_filename(filename):
+        return len(filename.split("/")) > 1 or filename in ["pytorch_model.bin", "diffusion_pytorch_model.bin"]
+    filenames = set(s.rfilename for s in info.siblings if is_valid_filename(s.rfilename))
+
+    print(filenames)
     with TemporaryDirectory() as d:
         folder = os.path.join(d, repo_folder_name(repo_id=model_id, repo_type="models"))
         os.makedirs(folder)
