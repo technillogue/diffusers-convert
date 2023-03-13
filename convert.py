@@ -192,6 +192,7 @@ def convert(api: "HfApi", model_id: str, force: bool = False) -> Optional["Commi
                 else:
                     raise RuntimeError(f"Model {model_id} doesn't seem to be a valid pytorch model. Cannot convert")
             else:
+                print("Convert generic")
                 operations = convert_generic(model_id, folder, filenames)
 
             if operations:
