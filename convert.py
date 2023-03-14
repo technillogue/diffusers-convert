@@ -188,13 +188,6 @@ def convert(api: "HfApi", model_id: str, force: bool = False) -> Optional["Commi
                 url = f"https://huggingface.co/{model_id}/discussions/{pr.num}"
                 new_pr = pr
                 raise AlreadyExists(f"Model {model_id} already has an open PR check out {url}")
-            elif library_name == "transformers":
-                if "pytorch_model.bin" in filenames:
-                    operations = convert_single(model_id, folder)
-                elif "pytorch_model.bin.index.json" in filenames:
-                    operations = convert_multi(model_id, folder)
-                else:
-                    raise RuntimeError(f"Model {model_id} doesn't seem to be a valid pytorch model. Cannot convert")
             else:
                 print("Convert generic")
                 operations = convert_generic(model_id, folder, filenames)
