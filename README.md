@@ -6,7 +6,7 @@ colorTo: red
 sdk: gradio
 sdk_version: 3.8.1
 app_file: app.py
-pinned: true
+pinned: false
 license: apache-2.0
 models: []
 datasets:
