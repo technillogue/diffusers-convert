@@ -51,15 +51,15 @@ def rename(pt_filename: str) -> str:
     return local
 
 
-def convert_multi(model_id: str, folder: str) -> List["CommitOperationAdd"]:
-    filename = hf_hub_download(repo_id=model_id, filename="pytorch_model.bin.index.json")
+def convert_multi(model_id: str, folder: str, revision: str = "main") -> List["CommitOperationAdd"]:
+    filename = hf_hub_download(repo_id=model_id, filename="pytorch_model.bin.index.json", revision=revision)
     with open(filename, "r") as f:
         data = json.load(f)
 
     filenames = set(data["weight_map"].values())
     local_filenames = []
     for filename in filenames:
-        pt_filename = hf_hub_download(repo_id=model_id, filename=filename)
+        pt_filename = hf_hub_download(repo_id=model_id, filename=filename, revision=revision)
 
         sf_filename = rename(pt_filename)
         sf_filename = os.path.join(folder, sf_filename)
@@ -143,14 +143,14 @@ def previous_pr(api: "HfApi", model_id: str, pr_title: str) -> Optional["Discuss
             return discussion
 
 
-def convert_generic(model_id: str, folder: str, filenames: Set[str]) -> List["CommitOperationAdd"]:
+def convert_generic(model_id: str, folder: str, filenames: Set[str], revision: str = "main") -> List["CommitOperationAdd"]:
     operations = []
 
     extensions = set([".bin", ".ckpt"])
     for filename in filenames:
         prefix, ext = os.path.splitext(filename)
         if ext in extensions:
-            pt_filename = hf_hub_download(model_id, filename=filename)
+            pt_filename = hf_hub_download(model_id, filename=filename, revision=revision)
             dirname, raw_filename = os.path.split(filename)
             if raw_filename == "pytorch_model.bin":
                 # XXX: This is a special case to handle `transformers` and the
@@ -164,9 +164,9 @@ def convert_generic(model_id: str, folder: str, filenames: Set[str]) -> List["Co
     return operations
 
 
-def convert(api: "HfApi", model_id: str, force: bool = False) -> Optional["CommitInfo"]:
+def convert(api: "HfApi", model_id: str, force: bool = False, revision: str = "main") -> Optional["CommitInfo"]:
     pr_title = "Adding `safetensors` variant of this model"
-    info = api.model_info(model_id)
+    info = api.model_info(model_id, revision=revision)
 
     def is_valid_filename(filename):
         return len(filename.split("/")) > 1 or filename in ["pytorch_model.bin", "diffusion_pytorch_model.bin"]
@@ -190,7 +190,7 @@ def convert(api: "HfApi", model_id: str, force: bool = False) -> Optional["Commi
                 raise AlreadyExists(f"Model {model_id} already has an open PR check out {url}")
             else:
                 print("Convert generic")
-                operations = convert_generic(model_id, folder, filenames)
+                operations = convert_generic(model_id, folder, filenames, revision=revision)
 
             if operations:
                 new_pr = api.create_commit(
@@ -225,7 +225,13 @@ if __name__ == "__main__":
         action="store_true",
         help="Create the PR even if it already exists of if the model was already converted.",
     )
+    parser.add_argument(
+    	"revision",
+    	default="main",
+    	help="Branch to convert. E.g. main, fp16, bf16"
+    )
     args = parser.parse_args()
     model_id = args.model_id
+    revision = args.revision
     api = HfApi()
-    convert(api, model_id, force=args.force)
+    convert(api, model_id, force=args.force, revision=revision)

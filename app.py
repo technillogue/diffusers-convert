@@ -19,7 +19,7 @@ if HF_TOKEN:
     repo = Repository(local_dir="data", clone_from=DATASET_REPO_URL, token=HF_TOKEN)
 
 
-def run(token: str, model_id: str) -> str:
+def run(token: str, model_id: str, revision: str = "main") -> str:
     if token == "" or model_id == "":
         return """
         ### Invalid input 🐞
@@ -31,7 +31,7 @@ def run(token: str, model_id: str) -> str:
         is_private = api.model_info(repo_id=model_id).private
         print("is_private", is_private)
 
-        commit_info = convert(api=api, model_id=model_id, force=True)
+        commit_info = convert(api=api, model_id=model_id, revision=revision, force=True)
         print("[commit_info]", commit_info)
 
         # save in a (public) dataset:
@@ -72,6 +72,7 @@ The steps are the following:
 
 - Paste a read-access token from hf.co/settings/tokens. Read access is enough given that we will open a PR against the source repo.
 - Input a model id from the Hub
+- Optionally select a revision like fp16
 - Click "Submit"
 - That's it! You'll get feedback if it works or not, and if it worked, you'll get the URL of the opened PR 🔥
 
@@ -86,6 +87,7 @@ demo = gr.Interface(
     inputs=[
         gr.Text(max_lines=1, label="your_hf_token"),
         gr.Text(max_lines=1, label="model_id"),
+        gr.Text(max_lines=1, label="revision", default="main"),
     ],
     outputs=[gr.Markdown(label="output")],
     fn=run,
